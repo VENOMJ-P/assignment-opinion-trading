@@ -28,3 +28,33 @@ export const signup = async (req, res, next) => {
     next(error);
   }
 };
+
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const user = await authService.login({ email, password });
+    user.genJwt(res);
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Successfully login user",
+      data: user,
+      error: {},
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const logout = async (req, res, next) => {
+  try {
+    res.cookie("jwt", "", { maxAge: 0 });
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Successfully logout user",
+      data: {},
+      error: {},
+    });
+  } catch (error) {
+    next(error);
+  }
+};

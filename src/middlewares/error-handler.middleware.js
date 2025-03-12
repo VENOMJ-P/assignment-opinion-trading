@@ -7,7 +7,7 @@ const errorHandler = (err, req, res, next) => {
     error: {
       name: err.name || "InternalServerError",
       message: err.message || "Something went wrong",
-      details: err.details || [],
+      details: err.details || err.explanation || [],
     },
   };
 

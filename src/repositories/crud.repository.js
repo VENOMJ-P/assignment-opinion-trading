@@ -1,7 +1,6 @@
-import ValidationError from "../utils/errors/validation.error.js";
 import ClientError from "../utils/errors/client.error.js";
-import AppError from "../utils/errors/app.error.js";
 import { StatusCodes } from "http-status-codes";
+import handleError from "../utils/handleError.js";
 
 class CrudRepository {
   constructor(model) {
@@ -13,7 +12,7 @@ class CrudRepository {
       console.log(data);
       return await this.model.create(data);
     } catch (error) {
-      throw this.handleError(error, "Create operation failed");
+      throw handleError(error, "Create operation failed");
     }
   }
 
@@ -30,7 +29,7 @@ class CrudRepository {
       }
       return response;
     } catch (error) {
-      throw this.handleError(error, "Get operation failed");
+      throw handleError(error, "Get operation failed");
     }
   }
 
@@ -38,7 +37,7 @@ class CrudRepository {
     try {
       return await this.model.find({});
     } catch (error) {
-      throw this.handleError(error, "Fetching all records failed");
+      throw handleError(error, "Fetching all records failed");
     }
   }
 
@@ -58,7 +57,7 @@ class CrudRepository {
       }
       return response;
     } catch (error) {
-      throw this.handleError(error, "Update operation failed");
+      throw handleError(error, "Update operation failed");
     }
   }
 
@@ -75,28 +74,7 @@ class CrudRepository {
       }
       return response;
     } catch (error) {
-      throw this.handleError(error, "Delete operation failed");
-    }
-  }
-
-  handleError(error, contextMessage) {
-    console.log(error);
-    if (error.name === "ValidationError") {
-      throw new ValidationError(error);
-    } else if (error.name === "CastError") {
-      throw new ClientError(
-        "InvalidObjectId",
-        "Invalid ID format",
-        [`The provided ID is not a valid MongoDB ObjectId.`],
-        StatusCodes.BAD_REQUEST
-      );
-    } else {
-      throw new AppError(
-        "DatabaseError",
-        contextMessage,
-        [error.message || "Unexpected database error occurred."],
-        StatusCodes.INTERNAL_SERVER_ERROR
-      );
+      throw handleError(error, "Delete operation failed");
     }
   }
 }

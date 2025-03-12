@@ -3,7 +3,7 @@ import ClientError from "../utils/errors/client.error.js";
 
 const VALID_ROLES = ["user", "admin"];
 
-const validateUser = async (req, res, next) => {
+const validateSignUpUser = async (req, res, next) => {
   try {
     const { username, fullName, email, password, role } = req.body;
 
@@ -54,4 +54,39 @@ const validateUser = async (req, res, next) => {
   }
 };
 
-export { validateUser };
+const validateLoginUser = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      throw new ClientError(
+        "MissingRequiredFields",
+        "Required fields are missing",
+        [
+          "Email and password are mandatory.",
+          "Please provide all required details to proceed.",
+        ]
+      );
+    }
+
+    if (password.length < 6) {
+      throw new ClientError("WeakPassword", "Your password is too short", [
+        "Passwords must be at least 6 characters long.",
+        "Try using a mix of letters, numbers, and symbols for better security.",
+      ]);
+    }
+
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+      throw new ClientError("InvalidEmailFormat", "Invalid email format", [
+        "Please provide a valid email address (e.g., user@example.com).",
+        "A valid email must contain '@' and a proper domain name.",
+      ]);
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+export { validateSignUpUser, validateLoginUser };
