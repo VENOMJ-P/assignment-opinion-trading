@@ -37,15 +37,24 @@ export const getEvent = async (req, res, next) => {
 
 export const getAllEvents = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, status, category } = req.query;
-    const filters = {};
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      category,
+      startAfter,
+      endBefore,
+    } = req.query;
 
+    const filters = {};
     if (status) filters.status = status;
     if (category) filters.category = category;
+    if (startAfter) filters.startTime = { $gte: new Date(startAfter) };
+    if (endBefore) filters.endTime = { $lte: new Date(endBefore) };
 
     const paginationOptions = {
-      page: parseInt(page),
-      limit: parseInt(limit),
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
     };
 
     const result = await eventService.getAllEvents(filters, paginationOptions);
@@ -54,12 +63,7 @@ export const getAllEvents = async (req, res, next) => {
       success: true,
       message: "Successfully retrieved events",
       data: result.events,
-      pagination: {
-        total: result.total,
-        page: paginationOptions.page,
-        limit: paginationOptions.limit,
-        pages: Math.ceil(result.total / paginationOptions.limit),
-      },
+      pagination: result.pagination,
       error: {},
     });
   } catch (error) {

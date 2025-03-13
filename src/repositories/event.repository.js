@@ -54,38 +54,26 @@ class EventRepository extends CrudRepository {
     }
   }
 
-  async getAll(query = {}) {
+  async getAll(filters = {}, paginationOptions = {}) {
     try {
-      const {
-        page = 1,
-        limit = 10,
-        category,
-        status,
-        startAfter,
-        endBefore,
-      } = query;
-
-      const filter = {};
-
-      if (category) filter.category = category;
-      if (status) filter.status = status;
-      if (startAfter) filter.startTime = { $gte: new Date(startAfter) };
-      if (endBefore) filter.endTime = { $lte: new Date(endBefore) };
+      const { page = 1, limit = 10 } = paginationOptions;
 
       const options = {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
         sort: { startTime: 1 },
         populate: "options",
       };
 
-      const events = await Event.find(filter)
+      console.log(filters);
+
+      const events = await Event.find(filters)
         .skip((options.page - 1) * options.limit)
         .limit(options.limit)
         .sort(options.sort)
         .populate("options");
 
-      const total = await Event.countDocuments(filter);
+      const total = await Event.countDocuments(filters);
 
       return {
         events,

@@ -27,10 +27,9 @@ class EventService {
     }
   }
 
-  async getAllEvents(query) {
+  async getAllEvents(filters, paginationOptions) {
     try {
-      const events = await this.eventRepository.getAll(query);
-      return events;
+      return await this.eventRepository.getAll(filters, paginationOptions);
     } catch (error) {
       throw error;
     }
