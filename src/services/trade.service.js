@@ -15,7 +15,7 @@ class TradeService {
 
   async createTrade(data) {
     const { userId, eventId, optionId, amount } = data;
-
+    console.log({ userId, eventId, optionId, amount });
     // Validate user
     const user = await this.userRepository.get(userId);
     if (!user) {
@@ -57,6 +57,7 @@ class TradeService {
         StatusCodes.BAD_REQUEST
       );
     }
+    console.log(user, event, option);
 
     // Calculate potential return
     const potentialReturn = amount * option.odds;

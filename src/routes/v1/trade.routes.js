@@ -23,27 +23,11 @@ import {
 
 const router = express.Router();
 
-router.post(
-  "/create",
-  protectRoute,
-
-  validateCreateTrade,
-  createTrade
-);
+router.post("/create", protectRoute, validateCreateTrade, createTrade);
 router.get("/:id", protectRoute, getTrade);
 router.get("/", protectRoute, getAllTrades);
-router.get(
-  "/user/:userId",
-  protectRoute,
-  validateIsAdminRequest,
-  getUserTrades
-);
-router.get(
-  "/event/:eventId",
-  protectRoute,
-  validateIsAdminRequest,
-  getEventTrades
-);
+router.get("/user/:userId", protectRoute, getUserTrades);
+router.get("/event/:eventId", protectRoute, getEventTrades);
 router.patch(
   "/:id/status",
   protectRoute,

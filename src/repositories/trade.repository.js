@@ -1,12 +1,9 @@
 import Trade from "../models/trade.model.js";
 import User from "../models/user.model.js";
-import Event from "../models/event.model.js";
-import Option from "../models/option.model.js";
 import ClientError from "../utils/errors/client.error.js";
 import { StatusCodes } from "http-status-codes";
 import handleError from "../utils/handleError.js";
 import { CrudRepository } from "./index.repository.js";
-import mongoose from "mongoose";
 
 class TradeRepository extends CrudRepository {
   constructor() {
@@ -14,16 +11,10 @@ class TradeRepository extends CrudRepository {
   }
 
   async create(data) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-      const { userId, amount, potentialReturn } = data;
+      const { userId, amount } = data;
 
-      // Create trade
-      const trade = await Trade.create([data], { session });
-
-      // Update user balance
+      // Find user before creating trade
       const user = await User.findById(userId);
       if (!user) {
         throw new ClientError(
@@ -34,16 +25,22 @@ class TradeRepository extends CrudRepository {
         );
       }
 
+      // Deduct balance before trade creation
+      if (user.balance < amount) {
+        throw new ClientError(
+          "InsufficientFunds",
+          "User does not have enough balance",
+          [`User balance: ${user.balance}, required: ${amount}`],
+          StatusCodes.BAD_REQUEST
+        );
+      }
       user.balance -= amount;
-      await user.save({ session });
+      await user.save();
 
-      await session.commitTransaction();
-      session.endSession();
-
-      return trade[0];
+      // Create trade
+      const trade = await Trade.create(data);
+      return trade;
     } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
       throw handleError(error, "Trade creation failed");
     }
   }
@@ -60,7 +57,8 @@ class TradeRepository extends CrudRepository {
             select: "title odds result",
           },
         })
-        .populate("optionId", "title odds result");
+        .populate("optionId", "title odds result")
+        .lean();
 
       if (!trade) {
         throw new ClientError(
@@ -81,11 +79,7 @@ class TradeRepository extends CrudRepository {
       const { page, limit } = pagination;
       const skip = (page - 1) * limit;
 
-      const query = {};
-      if (filters.userId) query.userId = filters.userId;
-      if (filters.eventId) query.eventId = filters.eventId;
-      if (filters.status) query.status = filters.status;
-      if (filters.result !== undefined) query.result = filters.result;
+      const query = { ...filters };
 
       const trades = await Trade.find(query)
         .populate("userId", "username email")
@@ -93,14 +87,12 @@ class TradeRepository extends CrudRepository {
         .populate("optionId", "title odds result")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .lean();
 
       const total = await Trade.countDocuments(query);
 
-      return {
-        trades,
-        total,
-      };
+      return { trades, total };
     } catch (error) {
       throw handleError(error, "Fetching trades failed");
     }
@@ -115,24 +107,19 @@ class TradeRepository extends CrudRepository {
       const { page, limit } = pagination;
       const skip = (page - 1) * limit;
 
-      const query = { userId };
-      if (filters.eventId) query.eventId = filters.eventId;
-      if (filters.status) query.status = filters.status;
-      if (filters.result !== undefined) query.result = filters.result;
+      const query = { userId, ...filters };
 
       const trades = await Trade.find(query)
         .populate("eventId", "title startTime endTime status")
         .populate("optionId", "title odds result")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .lean();
 
       const total = await Trade.countDocuments(query);
 
-      return {
-        trades,
-        total,
-      };
+      return { trades, total };
     } catch (error) {
       throw handleError(error, "Fetching user trades failed");
     }
@@ -147,23 +134,19 @@ class TradeRepository extends CrudRepository {
       const { page, limit } = pagination;
       const skip = (page - 1) * limit;
 
-      const query = { eventId };
-      if (filters.status) query.status = filters.status;
-      if (filters.result !== undefined) query.result = filters.result;
+      const query = { eventId, ...filters };
 
       const trades = await Trade.find(query)
         .populate("userId", "username email")
         .populate("optionId", "title odds result")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .lean();
 
       const total = await Trade.countDocuments(query);
 
-      return {
-        trades,
-        total,
-      };
+      return { trades, total };
     } catch (error) {
       throw handleError(error, "Fetching event trades failed");
     }
@@ -181,9 +164,12 @@ class TradeRepository extends CrudRepository {
         );
       }
 
+      const originalStatus = trade.status; // Store original status before updating
       trade.status = status;
-      if (status === "cancelled" && trade.status === "pending") {
-        // Refund the user's balance
+      await trade.save();
+
+      // If cancelled and was originally pending, refund user
+      if (status === "cancelled" && originalStatus === "pending") {
         const user = await User.findById(trade.userId);
         if (user) {
           user.balance += trade.amount;
@@ -191,7 +177,6 @@ class TradeRepository extends CrudRepository {
         }
       }
 
-      await trade.save();
       return trade;
     } catch (error) {
       throw handleError(error, "Update trade status failed");
@@ -199,11 +184,8 @@ class TradeRepository extends CrudRepository {
   }
 
   async settleTrade(id, result) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-      const trade = await Trade.findById(id).session(session);
+      const trade = await Trade.findById(id);
       if (!trade) {
         throw new ClientError(
           "ResourceNotFound",
@@ -218,28 +200,21 @@ class TradeRepository extends CrudRepository {
       trade.status = "settled";
       trade.settledAt = new Date();
 
-      // Calculate payout based on result
-      if (result === true) {
-        trade.payout = trade.potentialReturn;
+      // Handle payout
+      trade.payout = result ? trade.potentialReturn : 0;
 
-        // Update user balance with winnings
-        const user = await User.findById(trade.userId).session(session);
+      // Update user balance if trade is won
+      if (result) {
+        const user = await User.findById(trade.userId);
         if (user) {
           user.balance += trade.potentialReturn;
-          await user.save({ session });
+          await user.save();
         }
-      } else {
-        trade.payout = 0;
       }
 
-      await trade.save({ session });
-      await session.commitTransaction();
-      session.endSession();
-
+      await trade.save();
       return trade;
     } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
       throw handleError(error, "Settle trade failed");
     }
   }
